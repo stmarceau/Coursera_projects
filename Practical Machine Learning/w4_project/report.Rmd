@@ -1,7 +1,7 @@
 ---
 title: "w4_project"
 author: "S. Marceau"
-date: "11/6/2020"
+date: "12/03/2020"
 output: html_document
 ---
 
@@ -196,7 +196,7 @@ rf.mat<-confusionMatrix(rf.pred,testData$classe)
 
 # Comparing models and selecting final predictive model
 Looking at model accuracies, Random forest has the highest accuracy (above 99%) with a 98.7% kappa. We then keep the Random Forest as our predicting model for training activity.
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 model.compare<-as.data.frame(t(data.frame(KNN=knn.mat$overall["Accuracy"],
                                           BAYES=bayes.mat$overall["Accuracy"],
                                           QDA=qda.mat$overall["Accuracy"],
