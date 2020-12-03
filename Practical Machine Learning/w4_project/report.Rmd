@@ -1,0 +1,223 @@
+---
+title: "w4_project"
+author: "S. Marceau"
+date: "11/6/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Data loading
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(caret)
+library(dplyr)
+
+training<-read.csv("sources/pml-training.csv",na.strings=c("","NA"))
+testing<-read.csv("sources/pml-testing.csv",na.strings=c("","NA"))
+```
+
+# Data cross validation
+## class distribution
+from the chart below we notice that classes are not equally balanced. In particular classe A is much more frequent dans other classes.
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+ggplot(data = training)+geom_bar(aes(x=classe))
+```
+
+training set rows: `r dim(training)[1]'
+as training set contains many observations will will split the training set into a train set and a test set, keeping the testing set as a validation one.
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# validation set
+trainIn<-createDataPartition(y=training$classe,p = 0.75,list = TRUE)[[1]]
+trainData<-training[trainIn,]
+testData<-training[-trainIn,]
+```
+
+# EDA
+## data analysis
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(ggplot2)
+
+# get col with NAs
+naCount<-as.vector(apply(trainData,2,function(x)sum(is.na(x))))
+# names(trainData[,naCount>0])
+# review NA col
+# summary(trainData[,naCount==0])
+
+# build response / predictor
+xTrain<-trainData[,naCount==0]
+xTrain<-xTrain[,-2]
+# remove unncessary columns
+xTrain<-xTrain[,-which(names(xTrain) %in% c("X","classe","cvtd_timestamp","new_window","num_window","raw_timestamp_part_1","raw_timestamp_part_2"))]
+yTrain<-factor(trainData[,160])
+testData$classe<-as.factor(testData$classe)
+```
+
+## correlation review
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(corrplot)
+predCor<-cor(xTrain)
+corrplot(predCor,method="circle",type="lower",tl.col="black", tl.srt=45,sig.level = 0.5)
+
+# keep only predictors with less than 0.8 correlation
+highCorr <- findCorrelation(predCor, cutoff = .8)
+xTrain<-xTrain[,-highCorr]
+df<-mutate(xTrain,y=yTrain)
+```
+## Filtering predictors
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# nearZero var
+zeroVar<-nearZeroVar(scale(xTrain))
+# check predictor mean per categorical response
+catMean<-t(aggregate(.~y,data=df,mean))
+
+# predictor p-value
+predTstat<-function(x,y){
+  tTest<-t.test(x)
+  out<-c(p=tTest$p.value)
+  out
+}
+tVals<-t(apply(X=xTrain, MARGIN = 2,FUN = predTstat, y=yTrain))
+
+# measuring predictor importance
+# predictorRoc<-filterVarImp(x=xTrain,y=yTrain)
+# head(predictorRoc)
+```
+Near Zero var nb: `r length(zeroVar)`  
+
+# PCA
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# PCA
+pca.out<-prcomp(xTrain,scale. = TRUE)
+
+# library(ggbiplot)
+# ggbiplot(pca.out, groups = yTrain, ellipse = TRUE)
+
+# Scree plot: elbow review
+# screeplot(pca.out, type=c("lines"))
+scree.plot<-function(pcaData,cum,pcLim=NULL){
+  v<-pcaData$sdev^2
+  pve<-v/sum(v)
+  if(missing(cum)){
+    plot(pve, type = 'b',xlab='PC',xlim=c(1,pcLim))
+  } else {
+      plot(cumsum(pve), type = 'b',xlab='PC')
+    }
+}
+```
+
+## checking for best number of Principal Component
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+scree.plot(pca.out,pcLim = 10)
+```
+as per chart above and looking at the elbow, we will keep the fourth principal components
+
+## Vizualisation PC correlations
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# define PC
+n.pca=4
+pcaFeatures<-pca.out$x[,1:n.pca]
+df.pca<-mutate(as.data.frame(pcaFeatures),y=yTrain)
+
+library(GGally)
+ggpairs(as.data.frame(pca.out$x[,1:n.pca]),mapping = aes(color=yTrain))
+```
+
+# Fit Models
+## Kmeans
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+km.fit<-kmeans(xTrain,5,nstart=50)
+# km.fit$tot.withinss
+knn.mat<-confusionMatrix(factor(km.fit$cluster, labels = c("A", "B", "C", "D", "E")),yTrain)
+```
+
+## qda
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(MASS)
+# qda.fit<-qda(y~.,data = df)
+qda.fit<-train(y~.,data=df, method="qda")
+qda.pred<-predict(qda.fit,newdata = testData)
+qda.mat<-confusionMatrix(qda.pred,testData$classe)
+```
+
+## Naive Bayes
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(e1071)
+bayes.fit<-naiveBayes(y~., data = df, laplace = 2)
+bayes.pred<-predict(bayes.fit,newdata = testData, type = "class")
+bayes.mat<-confusionMatrix(bayes.pred,testData$classe)
+```
+
+## SVM
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(e1071)
+svm.fit<-svm(y~.,data=df,kernel="radial", cross=10)
+summary(svm.fit)
+svm.mat<-confusionMatrix(svm.fit$fitted,yTrain)
+
+# library(caret)
+# ctrl <- trainControl(method = "cv", index = trainIn)
+# fitControl <- trainControl(method="repeatedcv",
+#                            number=10,
+#                            repeats=3,
+#                            summaryFunction = multiClassSummary,
+#                            classProbs = TRUE)
+# 
+# svm.fit<-train(y ~ ., data = df, 
+#                  method = "svmRadial", 
+#                  trControl = fitControl, 
+#                  preProc = c("center", "scale"))
+# svm.pred<-predict(svm.fit,newdata = testData)
+# svm.mat<-confusionMatrix(svm.pred,testData$classe)
+# plot(svm.fit,df.pca)
+```
+
+## Boosting
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+# boost.fit <- train(y ~ ., data = df,
+#                    method="gbm",
+#                    trControl=fitControl,
+#                    verbose=FALSE)
+
+library(C50)
+boost.fit<-C5.0(y~.,data=df, trials=10)
+boost.pred<-predict(boost.fit,newdata = testData)
+boost.mat<-confusionMatrix(boost.pred,testData$classe)
+```
+
+## Random forest
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+library(randomForest)
+set.seed(791)
+rf.fit <- randomForest(y ~ ., data = df,nTree=2000,importance=TRUE)
+# rf.fit<-train(y~., data=df,
+#               method="rf",
+#               ntree=1000)
+# rfcv()
+rf.pred<-predict(rf.fit,newdata = testData, type="class")
+rf.mat<-confusionMatrix(rf.pred,testData$classe)
+```
+
+# Comparing models and selecting final predictive model
+Looking at model accuracies, Random forest has the highest accuracy (above 99%) with a 98.7% kappa
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+model.compare<-as.data.frame(t(data.frame(KNN=knn.mat$overall["Accuracy"],
+                                          BAYES=bayes.mat$overall["Accuracy"],
+                                          QDA=qda.mat$overall["Accuracy"],
+                                          RF=rf.mat$overall["Accuracy"],
+                                          SVM=svm.mat$overall["Accuracy"],
+                                          BOOST=boost.mat$overall["Accuracy"])))
+ggplot(aes(x=row.names(model.compare),y=Accuracy),data=model.compare)+geom_bar(stat='identity')+labs(x="model")
+```
+
+
+```{r eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+library(caret)
+resamps<-resamples(list(SVM = svm.fit,RF = rf.fit))
+summary(resamps)
+dotplot(resamps, metric = "ROC")
+```
+
+
