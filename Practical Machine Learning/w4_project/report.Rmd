@@ -10,7 +10,7 @@ knitr::opts_chunk$set(echo = TRUE)
 ```
 
 # Data loading
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 library(caret)
 library(dplyr)
 
@@ -21,11 +21,11 @@ testing<-read.csv("sources/pml-testing.csv",na.strings=c("","NA"))
 # Data cross validation
 ## class distribution
 from the chart below we notice that classes are not equally balanced. In particular classe A is much more frequent dans other classes.
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(data = training)+geom_bar(aes(x=classe))
 ```
 
-training set rows: `r dim(training)[1]'
+training set rows: `r dim(training)[1]`
 as training set contains many observations will will split the training set into a train set and a test set, keeping the testing set as a validation one.
 
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
@@ -88,7 +88,7 @@ tVals<-t(apply(X=xTrain, MARGIN = 2,FUN = predTstat, y=yTrain))
 Near Zero var nb: `r length(zeroVar)`  
 
 # PCA
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 # PCA
 pca.out<-prcomp(xTrain,scale. = TRUE)
 
@@ -109,13 +109,14 @@ scree.plot<-function(pcaData,cum,pcLim=NULL){
 ```
 
 ## checking for best number of Principal Component
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 scree.plot(pca.out,pcLim = 10)
 ```
+
 as per chart above and looking at the elbow, we will keep the fourth principal components
 
-## Vizualisation PC correlations
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+## Vizualisation Principal Component correlations
+```{r echo=FALSE, message=FALSE, warning=FALSE}
 # define PC
 n.pca=4
 pcaFeatures<-pca.out$x[,1:n.pca]
@@ -154,7 +155,6 @@ bayes.mat<-confusionMatrix(bayes.pred,testData$classe)
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 library(e1071)
 svm.fit<-svm(y~.,data=df,kernel="radial", cross=10)
-summary(svm.fit)
 svm.mat<-confusionMatrix(svm.fit$fitted,yTrain)
 
 # library(caret)
@@ -201,7 +201,7 @@ rf.mat<-confusionMatrix(rf.pred,testData$classe)
 ```
 
 # Comparing models and selecting final predictive model
-Looking at model accuracies, Random forest has the highest accuracy (above 99%) with a 98.7% kappa
+Looking at model accuracies, Random forest has the highest accuracy (above 99%) with a 98.7% kappa. We then keep the Random Forest as our predicting model for training activity.
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 model.compare<-as.data.frame(t(data.frame(KNN=knn.mat$overall["Accuracy"],
                                           BAYES=bayes.mat$overall["Accuracy"],
