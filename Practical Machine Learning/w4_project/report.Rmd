@@ -8,9 +8,13 @@ output: html_document
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
 ```
+# Summary
+This project aims at predicting the manner how Six young health participants perform barbell lifts correctly and incorrectly in 5 different ways (Class A, B, C, D, E, A being the right way). To do so, their activity was recorded using devices such as Jawbone Up, Nike FuelBand, and Fitbit to collect a large amount of data from accelerometers on the belt, forearm, arm, and dumbell about personal activity.
+
+After loading the relevant data from csv files, we will review the class distribution to carry out a data cross validation by splitting the training set into a train and test set. We will explore the data set and select the features to be used as predictors. Then will will carry out a dimension reduction using Principal Component and check for class separation. Finally we will fit several classification models to best predict the one activity class.
 
 # Data loading
-```{r echo=FALSE, message=FALSE, warning=FALSE}
+```{r echo=TRUE, message=FALSE, warning=FALSE}
 library(caret)
 library(dplyr)
 
@@ -20,7 +24,7 @@ testing<-read.csv("sources/pml-testing.csv",na.strings=c("","NA"))
 
 # Data cross validation
 ## class distribution
-from the chart below we notice that classes are not equally balanced. In particular classe A is much more frequent dans other classes.
+from the chart below we notice that classes are not equally balanced. In particular classe A is much more frequent dans other classes. 
 ```{r echo=FALSE, message=FALSE, warning=FALSE}
 ggplot(data = training)+geom_bar(aes(x=classe))
 ```
@@ -66,23 +70,13 @@ highCorr <- findCorrelation(predCor, cutoff = .8)
 xTrain<-xTrain[,-highCorr]
 df<-mutate(xTrain,y=yTrain)
 ```
+
 ## Filtering predictors
 ```{r echo=TRUE, message=FALSE, warning=FALSE}
 # nearZero var
 zeroVar<-nearZeroVar(scale(xTrain))
-# check predictor mean per categorical response
-catMean<-t(aggregate(.~y,data=df,mean))
-
-# predictor p-value
-predTstat<-function(x,y){
-  tTest<-t.test(x)
-  out<-c(p=tTest$p.value)
-  out
-}
-tVals<-t(apply(X=xTrain, MARGIN = 2,FUN = predTstat, y=yTrain))
-
 # measuring predictor importance
-# predictorRoc<-filterVarImp(x=xTrain,y=yTrain)
+predictorRoc<-filterVarImp(x=xTrain,y=yTrain, nonpara = TRUE)
 # head(predictorRoc)
 ```
 Near Zero var nb: `r length(zeroVar)`  
@@ -188,14 +182,14 @@ boost.mat<-confusionMatrix(boost.pred,testData$classe)
 ```
 
 ## Random forest
-```{r echo=TRUE, message=FALSE, warning=FALSE}
+```{r echo=TRUE, message=FALSE, warning=FALSE, fig.height=10}
 library(randomForest)
 set.seed(791)
 rf.fit <- randomForest(y ~ ., data = df,nTree=2000,importance=TRUE)
 # rf.fit<-train(y~., data=df,
 #               method="rf",
 #               ntree=1000)
-# rfcv()
+
 rf.pred<-predict(rf.fit,newdata = testData, type="class")
 rf.mat<-confusionMatrix(rf.pred,testData$classe)
 ```
