@@ -1,0 +1,46 @@
+---
+title: "w2_project"
+author: "S. Marceau"
+date: "11/5/2020"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## read data from file
+```{r, echo=FALSE}
+immoData<-read.csv("paris.csv")
+
+library(tidyr)
+library(dplyr)
+immoDf<-immoData %>% extract(location.coordinates,c("lng","lat"),"([0-9.]+), ([0-9.]+)") %>% mutate(lng=as.numeric(lng), lat=as.numeric(lat), yr=as.numeric(substr(mutation.date_mutation,1,4)))
+```
+# Plot real estate srqt.meter prices per location with date legend as of 5th November 2020
+```{r echo=FALSE}
+library(leaflet)
+df<-immoDf[,c("lat", "lng", "prix_surface", "yr")]
+map<-leaflet(df) %>% addTiles()
+# Create a continuous palette function
+pal<-colorNumeric(
+  palette = "Blues",
+  domain = df$yr)
+f<-factor(df$yr)
+
+pal <- colorFactor(topo.colors(length(levels(f))), df$yr)
+
+map %>% addCircleMarkers(
+    radius = ~prix_surface/1000,
+    color = ~pal(yr),
+    stroke = FALSE, fillOpacity = 0.5,
+    label = ~prix_surface
+  ) %>%
+  addLegend("topright", pal = pal, values = ~yr,
+    title = "Real estate price per sqrt.meter",
+    # labFormat = labelFormat(prefix = "$"),
+    opacity = 1
+  )
+
+```
+

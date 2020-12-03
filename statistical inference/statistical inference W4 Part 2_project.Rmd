@@ -1,0 +1,83 @@
+---
+title       : Statistical inference w4 report
+subtitle    : Part 2 Basic Inferential Data Analysis
+author      : Stephane Marceau
+job         : Coursera Statistical inference course
+output      : pdf_document
+---
+
+## Summary
+In this project, we're going to analyze the ToothGrowth data in the R datasets package.
+First we will look at the data table and print out a data frame summary.
+Then we will visualize the growth of guinea pig tooth with regards to supp and vitamin C dose.
+Finally, we will compare tooth growth due to supp effect and then tooth growth due to vitamin C dose effect using the hypothesis testing.
+
+## Printing out data table head
+```{r}
+data(ToothGrowth)
+head(ToothGrowth)
+```
+## Summarising data
+```{r}
+summary(ToothGrowth)
+```
+
+## Plotting the data
+### Reviewing tooth growth by supp
+```{r, fig.height=3.5}
+library(ggplot2)
+g <- ggplot(ToothGrowth, aes(x = supp, y = len, group = factor(dose)))
+g <- g  + geom_point(size =10, pch = 21, aes(fill = dose), alpha = .5)+ggtitle("Guinea pig tooth growth by delivery method")
+g+theme(plot.title = element_text(hjust = 0.5))
+```
+
+### Reviewing tooth growth by dose
+```{r, fig.height=3.5}
+g <- ggplot(ToothGrowth, aes(x = dose, y = len, group=factor(supp)))
+g <- g  + geom_point(size =10, pch = 21, aes(fill = supp), alpha = .5)+ggtitle("Guinea pig tooth growth by vitamin C dose")
+g+theme(plot.title = element_text(hjust = 0.5))
+```
+
+## Spliting data into groups
+```{r}
+# grouping by supp
+vc_group<-ToothGrowth[ToothGrowth$supp=="VC",]
+oj_group<-ToothGrowth[ToothGrowth$supp=="OJ",]
+
+# grouping by dose
+dose_group1<-ToothGrowth[ToothGrowth$dose==.5,]
+dose_group2<-ToothGrowth[ToothGrowth$dose==1,]
+dose_group3<-ToothGrowth[ToothGrowth$dose==2,]
+```
+
+## Comparing tooth growth by supp
+**Testing $H_o: µ_{vc} = µ_{oj}$ vs $H_a: µ_{vc}< µ_{oj}$**
+Using t.test function with two variables not paired
+```{r}
+t.test(x = vc_group$len,y = oj_group$len,mu = 0,paired = FALSE, var.equal = TRUE, alternative = "less")
+```
+
+p-value is below 5%. We reject the null hypothesis with a 95% confidence interval.
+Using orange juice improves tooth growth compared to using Vitamin C.
+
+## Comparing tooth growth by dose
+**Testing $H_0: µ_1 = µ_2$ vs $H_a: µ_1 < µ_2$**
+Using t.test function with two variables not paired
+```{r}
+t.test(x = dose_group1$len,y = dose_group2$len,mu = 0,paired = FALSE, var.equal = FALSE,alternative = "less")
+```
+
+p-value is significantly lower than 5%, thus we reject the null hypothesis.
+Group 2 tooth growth is greater than group 1. A dose of 1mg/day improves tooth growth.
+
+**Testing $H_0: µ_2 = µ_3$ vs $H_a: µ_2 < µ_3$**
+Using t.test function with two variables not paired
+```{r}
+t.test(x = dose_group2$len,y = dose_group3$len,mu = 0,paired = FALSE, var.equal = FALSE,alternative = "less")
+```
+
+p-value is significantly lower than 5%, thus we reject the null hypothesis.
+Group 3 tooth growth is greater than group 2. A dose of 2mg/day improves tooth growth.
+
+## Conclusion
+Based on the sample data ToothGrowth, we  conclude that tooth growth if not affected by the supp factor, but rather by the dose of Vitamin C received by the Guinea Pigs.

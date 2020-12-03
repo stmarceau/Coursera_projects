@@ -1,0 +1,164 @@
+---
+title: "Regression models course project"
+author: "S. Marceau"
+date: "10/21/2020"
+output:
+  pdf_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Summary
+During this project, we will explore a car database in order to evaluate whether an automatic or a manual transmission is better as car gaz consumption is concerned. To do so, we will review the relationship between a set of variables and miles per gallon (MPG) by fitting multiple regression models. Then we will evaluate the relevant model fit by looking at residuals in order to optimize the model accuracy and by looking for potential outliers. Finally, we will quantify the MPG difference between automatic and manual transmissions.
+
+# Exploratory analysis
+```{r, echo=FALSE}
+data("mtcars")
+library(ggplot2)
+```
+
+## Testing for automatic and manual transmission mean difference
+```{r, echo=FALSE}
+t<-t.test(x = mtcars[mtcars$am==1,"mpg"],y= mtcars[mtcars$am==0,"mpg"],paired = FALSE)
+t
+```
+
+From figure \ref{fig:mpg-boxplot} and t-test above, we can definitely tell that mpg increase for manual cars lies between `r t$conf.int[1]` and `r t$conf.int[2]` with 95% confidence.
+
+# Exploring the relationship between variables mpg and am
+## Checking whether am is an effective predictor for mpg
+Assessing multiple models based on the most influent variables, looking only at RSS values, we note that model 5 and 6 have the lowest residual variance.
+
+```{r multiple-fit,echo=FALSE}
+fit1<-lm(formula = mpg~am,data = mtcars)
+fit2<-update(object = fit1,mpg~am+cyl)
+fit3<-update(object = fit1,mpg~am+disp)
+fit4<-update(object = fit1,mpg~am+wt)
+fit5<-update(object = fit1,mpg~am+hp)
+fit6<-update(object = fit1,mpg~am+hp+wt)
+fit7<-update(object = fit1,mpg~am+hp+wt+disp)
+
+# looking only at the RSS
+anova(fit1,fit2,fit3,fit4,fit5)
+```
+
+## comparing nested models including am variable as predictor
+```{r, echo=FALSE}
+anova(fit1,fit5,fit6)
+```
+
+From we should probably include hp and wt variables as model 6 reduces residual variance significantly
+
+## looking at the am coefficients for model adjusted with other variables
+```{r, echo=FALSE}
+rbind(summary(fit1)$coeff[2,],
+      summary(fit2)$coeff[2,],
+      summary(fit3)$coeff[2,],
+      summary(fit4)$coeff[2,],
+      summary(fit5)$coeff[2,],
+      summary(fit6)$coeff[2,],
+      summary(fit7)$coeff[2,])
+```
+
+Model 6 am beta estimate fails to reject null hyp, thus we will carry on with model 5 which is the better compromise between RSS and am beta estimate, meaning automatic cars increase mpg by `r summary(fit5)$coeff[2,1]` (which lies in the 95% confident range computed previously). It should be noted that, r-squared is `r summary(fit5)$r.squared` which is a pretty reliable regression.
+
+## Residuals review
+Before validating the model above, let's review the residuals and check for potential outliers.
+
+From the charts figure \ref{fig:residual-charts}, we note that:  
+- Maserati Bora and Ford Pantera are the most levered data points  
+- Maserati Bora, Lotus Europa and Toyota Corolla are the most influent points beta wise  
+- Maserati Bora, Lotus Europa and Toyota Corolla are the most sensitive predicted values  
+
+As a result, we will consider Maserati Bora and Toyota Corolla as outliers hereafter.
+
+```{r, echo=FALSE}
+#remove potential outliers and assess regression error
+library(car)
+mtcarsNo<-mtcars[-which.names(names =c("Maserati Bora", "Toyota Corolla"),object = mtcars),]
+
+fitNo<-lm(formula = mpg~am+hp,data = mtcarsNo)
+summary(fitNo)
+```
+
+After removal of Toyota Corolla and Maseratti Bora, am beta estimate p value is lower than 5%, then we reject the Null hypothesis i.e. accepting am beta estimate value. Residual standard error is down from to 2.684 from 2.909 before outliers removal.
+
+# Conclusion
+From the regression model without outliers fig \ref{fig:outcome-chart}, the difference in intercept is the mpg difference between manual and automatic transmission. Thus manual cars mpg is **`r round(fitNo$coeff[2],2)`** higher than automatic cars.
+
+\pagebreak
+___
+# Appendix
+```{r cars, echo=FALSE}
+head(mtcars)
+```
+
+## Exploring the relationship between transmission and mpg
+
+```{r mpg-boxplot, echo=FALSE, fig.height=5, fig.cap="\\label{fig:mpg-boxplot}mpg boxplot per transmission factor"}
+boxplot(formula=mpg~am,data = mtcars)
+```
+
+## Exploring the relationship between available variables
+```{r, echo=FALSE, warning=FALSE, fig.cap="Variable relationships", fig.height=5}
+# library(GGally)
+# ggcorr(mtcars,nbreaks = 10)
+scatterplotMatrix(~mpg+wt+cyl+hp|am, data=mtcars)
+```
+
+## Exploring the regression residuals
+```{r residual-charts, fig.cap="\\label{fig:residual-charts}Residual charts", fig.height=5, echo=FALSE}
+library(gridExtra)
+hats<-hatvalues(fit5)
+hats_outliers<-hats>.15
+g1<-ggplot()+
+  geom_point(aes(x = fit5$fitted.values, y=hats, color=(hats_outliers)))+
+  guides(color = "none")+
+  geom_text(
+    aes(x = fit5$fitted.values[hats_outliers], y=hats[hats_outliers]),
+    label=names(fit5$fitted.values[hats_outliers]),
+    nudge_x = 0.1, nudge_y = 0.1,
+    size=2
+  )+
+  scale_fill_brewer(palette="Set1")
+  # scale_colour_manual(values=c("blue", "salmon"))
+
+betas<-dfbetas(fit5)[,2]
+betas_outliers<-betas>.4
+g2<-ggplot()+
+  geom_point(aes(x = fit5$fitted.values, y=betas, color=(betas_outliers)))+
+  guides(color = "none")+
+  geom_text(
+    aes(x = fit5$fitted.values[betas_outliers], y=betas[betas_outliers]),
+    label=names(fit5$fitted.values[betas_outliers]),
+    nudge_x = 0.1, nudge_y = 0.1,
+    size=2
+  )+
+  scale_fill_brewer(palette="Set1")
+  # scale_colour_manual(values=c("blue", "salmon"))
+
+fits<-dffits(fit5)
+fits_outliers<-fits>.5
+g3<-ggplot()+
+  geom_point(aes(x = fit5$fitted.values, y=fits, color=(fits_outliers)))+
+  guides(color = "none")+
+  geom_text(
+    aes(x = fit5$fitted.values[fits_outliers], y=fits[fits_outliers]),
+    label=names(fit5$fitted.values[fits_outliers]),
+    nudge_x = 0.1, nudge_y = 0.1,
+    size=2
+  )+
+  scale_fill_brewer(palette="Set1")
+  # scale_colour_manual(values=c("blue", "salmon"))
+grid.arrange(g1,g2,g3, ncol = 2)
+```
+
+## Exploring mpg as outcome with hp regressors
+```{r outcome-chart, echo=FALSE, fig.cap="\\label{fig:outcome-chart} mpg regression"}
+library(ggplot2)
+ggplot(mtcarsNo, aes(x=hp, y=mpg, color=as.factor(am))) +
+  geom_point() + 
+  geom_smooth(method=lm, se=FALSE, fullrange=TRUE)
+```
